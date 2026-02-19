@@ -21,18 +21,14 @@ def imports():
 
 @app.cell
 def user_inputs(mo):
-    """Address input and fall radius multiplier."""
+    """Address input."""
     address_input = mo.ui.text(
         value="200 Colma Blvd, Colma, CA 94014",
         label="Property address",
         full_width=True,
     )
-    fall_slider = mo.ui.slider(
-        start=1.0, stop=4.0, step=0.25, value=2.0,
-        label="Fall radius multiplier",
-    )
-    mo.output.replace(mo.vstack([address_input, fall_slider]))
-    return address_input, fall_slider
+    mo.output.replace(address_input)
+    return (address_input,)
 
 
 @app.cell
@@ -61,12 +57,11 @@ def detect_tree_crowns(detect_trees, tile):
 
 
 @app.cell
-def calibrate_trees(compute_tree_risks, detections, fall_slider, lat, lng, tile):
+def calibrate_trees(compute_tree_risks, detections, lat, lng, tile):
     """Convert pixel detections to real-world coordinates and compute fall radii."""
     trees = compute_tree_risks(
         detections, center_lat=lat, center_lng=lng,
         img_width=tile.size[0], img_height=tile.size[1],
-        fall_multiplier=fall_slider.value,
     )
     return (trees,)
 

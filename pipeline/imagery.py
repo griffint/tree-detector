@@ -12,16 +12,18 @@ STATIC_MAP_URL = "https://maps.googleapis.com/maps/api/staticmap"
 
 DEFAULT_ZOOM = 19
 DEFAULT_SIZE = 640
+DEFAULT_SCALE = 2  # 2x pixel density — returns 1280x1280 for same geographic area
 
 
-def meters_per_pixel(lat: float, zoom: int = DEFAULT_ZOOM) -> float:
-    """Meters per pixel at a given latitude and zoom level."""
-    return 156543.03392 * math.cos(math.radians(lat)) / (2 ** zoom)
+def meters_per_pixel(lat: float, zoom: int = DEFAULT_ZOOM, scale: int = DEFAULT_SCALE) -> float:
+    """Meters per pixel at a given latitude, zoom level, and scale factor."""
+    return 156543.03392 * math.cos(math.radians(lat)) / (2 ** zoom) / scale
 
 
 def tile_bounds(lat: float, lng: float, size: int = DEFAULT_SIZE, zoom: int = DEFAULT_ZOOM) -> dict:
     """Compute the lat/lng bounds of a tile centered on (lat, lng)."""
-    mpp = meters_per_pixel(lat, zoom)
+    # Use scale=1 here — geographic extent depends on zoom and size, not pixel density
+    mpp = meters_per_pixel(lat, zoom, scale=1)
     half_width_m = (size / 2) * mpp
     half_height_m = (size / 2) * mpp
 
@@ -45,6 +47,7 @@ def fetch_satellite_tile(
         "center": f"{lat},{lng}",
         "zoom": zoom,
         "size": f"{size}x{size}",
+        "scale": DEFAULT_SCALE,
         "maptype": "satellite",
         "key": GOOGLE_MAPS_API_KEY,
     }

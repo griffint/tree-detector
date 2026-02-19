@@ -38,7 +38,8 @@ def compute_tree_risks(
     center_lng: float,
     img_width: int,
     img_height: int,
-    fall_multiplier: float = 2.0,  # fall radius = canopy radius * this value
+    fall_multiplier: float = 3.0,  # fall radius = canopy radius * this value (raised from 2x — trees are taller than wide)
+    min_fall_radius_m: float = 8.0,  # floor so even small-canopy trees are treated as a real threat
     zoom: int = DEFAULT_ZOOM,
 ) -> pd.DataFrame:
     """Add real-world position and fall radius to each detected tree.
@@ -66,7 +67,7 @@ def compute_tree_risks(
         box_h = (det["ymax"] - det["ymin"]) * mpp
         canopy_radius_m = (box_w + box_h) / 4  # average diameter / 2
 
-        fall_radius_m = canopy_radius_m * fall_multiplier
+        fall_radius_m = max(canopy_radius_m * fall_multiplier, min_fall_radius_m)
 
         rows.append({
             **det.to_dict(),

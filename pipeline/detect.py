@@ -18,8 +18,8 @@ def get_model() -> deepforest_main.deepforest:
 
 def detect_trees(
     image: Image.Image,
-    score_threshold: float = 0.3,   # back to DeepForest default; lets more real trees through
-    min_box_px: int = 10,           # ignore tiny detections (noise/artifacts)
+    score_threshold: float = 0.3,   # back to DeepForest default
+    min_box_px: int = 30,           # ~4.5m canopy minimum — skip shrubs, keep real trees
     max_box_px: int = 300,          # ignore huge detections (misidentified buildings, etc.)
     nms_thresh: float = 0.3,        # raised from 0.15 to keep nearby trees instead of merging them
 ) -> pd.DataFrame:
@@ -30,7 +30,7 @@ def detect_trees(
     model = get_model()
     model.config.nms_thresh = nms_thresh
     img_array = np.array(image).astype(np.uint8)
-    results = model.predict_tile(image=img_array, patch_size=400, patch_overlap=0.15)  # overlap raised from 0.05 to catch trees at patch edges
+    results = model.predict_tile(image=img_array, patch_size=600, patch_overlap=0.25)  # larger patches + more overlap for scale=2 imagery
     if results is None or results.empty:
         return pd.DataFrame(columns=["xmin", "ymin", "xmax", "ymax", "score", "label"])
 
