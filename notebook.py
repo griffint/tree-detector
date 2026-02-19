@@ -7,66 +7,75 @@ app = marimo.App(width="medium")
 def imports():
     """Load pipeline modules and dependencies."""
     from pipeline.geocode import geocode
-    from pipeline.imagery import fetch_satellite_tile
+    from pipeline.imagery import fetch_satellite_tile, tile_bounds, meters_per_pixel
     from pipeline.detect import detect_trees
     from pipeline.risk import compute_tree_risks, classify_danger
     from pipeline.buildings import fetch_buildings
-    from pipeline.imagery import tile_bounds
-    from deepforest.visualize import plot_results
     from PIL import ImageDraw
+    import math
     import marimo as mo
     return (ImageDraw, classify_danger, compute_tree_risks, detect_trees,
-            fetch_buildings, fetch_satellite_tile, geocode, mo, plot_results, tile_bounds)
+            fetch_buildings, fetch_satellite_tile, geocode, math, meters_per_pixel,
+            mo, tile_bounds)
 
 
 @app.cell
-def geocode_address(geocode, mo):
-    """Convert a street address to lat/lng coordinates via Google Geocoding API."""
-    address = "200 Colma Blvd, Colma, CA 94014"
+def user_inputs(mo):
+    """Address input and fall radius multiplier."""
+    address_input = mo.ui.text(
+        value="200 Colma Blvd, Colma, CA 94014",
+        label="Property address",
+        full_width=True,
+    )
+    fall_slider = mo.ui.slider(
+        start=1.0, stop=4.0, step=0.25, value=2.0,
+        label="Fall radius multiplier",
+    )
+    mo.output.replace(mo.vstack([address_input, fall_slider]))
+    return address_input, fall_slider
+
+
+@app.cell
+def geocode_address(address_input, geocode, mo):
+    """Convert the entered address to lat/lng coordinates."""
+    address = address_input.value
+    if not address.strip():
+        mo.stop(True, mo.md("Enter an address above to get started."))
     lat, lng = geocode(address)
-    mo.output.replace(mo.md(f"**Address:** {address}\n\n**Coordinates:** {lat:.6f}, {lng:.6f}"))
+    mo.output.replace(mo.md(f"**Coordinates:** {lat:.6f}, {lng:.6f}"))
     return address, lat, lng
 
 
 @app.cell
-def fetch_satellite_imagery(fetch_satellite_tile, lat, lng, mo):
-    """Fetch a 640x640 satellite tile centered on the geocoded coordinates."""
+def fetch_satellite_imagery(fetch_satellite_tile, lat, lng):
+    """Fetch satellite tile centered on the geocoded coordinates."""
     tile = fetch_satellite_tile(lat, lng)
-    mo.output.replace(mo.vstack([
-        mo.md(f"**Tile size:** {tile.size[0]}x{tile.size[1]}"),
-        mo.image(tile),
-    ]))
     return (tile,)
 
 
 @app.cell
-def detect_tree_crowns(detect_trees, mo, plot_results, tile):
-    """Run DeepForest tree crown detection and show debug overlay."""
+def detect_tree_crowns(detect_trees, tile):
+    """Run DeepForest tree crown detection on the satellite tile."""
     detections = detect_trees(tile)
-    fig = plot_results(detections, image=tile, show=False)
-    mo.output.replace(mo.vstack([
-        mo.md(f"**Trees detected:** {len(detections)}"),
-        fig,
-    ]))
     return (detections,)
 
 
 @app.cell
-def calibrate_trees(compute_tree_risks, detections, lat, lng, tile):
+def calibrate_trees(compute_tree_risks, detections, fall_slider, lat, lng, tile):
     """Convert pixel detections to real-world coordinates and compute fall radii."""
     trees = compute_tree_risks(
         detections, center_lat=lat, center_lng=lng,
         img_width=tile.size[0], img_height=tile.size[1],
+        fall_multiplier=fall_slider.value,
     )
     return (trees,)
 
 
 @app.cell
-def fetch_building_footprints(fetch_buildings, lat, lng, mo, tile_bounds):
+def fetch_building_footprints(fetch_buildings, lat, lng, tile_bounds):
     """Fetch OSM building footprints for the tile area."""
     bounds = tile_bounds(lat, lng)
     buildings = fetch_buildings(**bounds)
-    mo.output.replace(mo.md(f"**Buildings found:** {len(buildings)}"))
     return bounds, buildings
 
 
@@ -78,12 +87,8 @@ def classify_tree_risk(buildings, classify_danger, trees):
 
 
 @app.cell
-def annotate_and_display(ImageDraw, bounds, buildings, classified, lat, lng, mo, tile):
+def annotate_and_display(ImageDraw, buildings, classified, lat, lng, math, meters_per_pixel, mo, tile):
     """Draw buildings, safe trees (green), and danger trees (red) on the satellite image."""
-    from pipeline.risk import pixel_to_latlng
-    from pipeline.imagery import meters_per_pixel, DEFAULT_ZOOM
-    import math
-
     annotated = tile.copy()
     draw = ImageDraw.Draw(annotated)
     img_w, img_h = tile.size
@@ -99,7 +104,7 @@ def annotate_and_display(ImageDraw, bounds, buildings, classified, lat, lng, mo,
         px_y = dy_m / mpp + img_h / 2
         return px_x, px_y
 
-    # Draw building footprints in blue
+    # Draw building footprints
     for _, bldg in buildings.iterrows():
         geom = bldg.geometry
         if geom.geom_type == "Polygon":
@@ -116,7 +121,6 @@ def annotate_and_display(ImageDraw, bounds, buildings, classified, lat, lng, mo,
     # Draw trees: green = safe, red = danger
     for _, tree in classified.iterrows():
         color = "red" if tree["danger"] else "lime"
-        # Draw bounding box
         draw.rectangle(
             [tree["xmin"], tree["ymin"], tree["xmax"], tree["ymax"]],
             outline=color, width=2,
@@ -133,8 +137,12 @@ def annotate_and_display(ImageDraw, bounds, buildings, classified, lat, lng, mo,
             )
 
     n_danger = classified["danger"].sum()
+    n_safe = len(classified) - n_danger
     mo.output.replace(mo.vstack([
-        mo.md(f"**{len(classified)} trees detected, {n_danger} within fall distance of structures**"),
+        mo.md(f"### Results\n\n"
+               f"**{len(classified)}** trees detected | "
+               f"**{n_danger}** danger | "
+               f"**{n_safe}** safe"),
         mo.image(annotated),
     ]))
     return (annotated,)
