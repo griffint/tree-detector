@@ -45,7 +45,6 @@ def fetch_satellite_tile(
         "center": f"{lat},{lng}",
         "zoom": zoom,
         "size": f"{size}x{size}",
-        "scale": 2,
         "maptype": "satellite",
         "key": GOOGLE_MAPS_API_KEY,
     }
