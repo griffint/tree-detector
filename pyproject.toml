@@ -1,0 +1,22 @@
+[project]
+name = "tree-risk"
+version = "0.1.0"
+description = "Tree risk assessment tool using satellite imagery and DeepForest"
+authors = [
+    {name = "Griffin Tschurwald"}
+]
+requires-python = "^3.11,<3.13"
+dependencies = [
+    "marimo (>=0.19.11,<0.20.0)",
+    "deepforest (>=2.0.0,<3.0.0)",
+    "osmnx (>=2.1.0,<3.0.0)",
+    "shapely (>=2.1.2,<3.0.0)",
+    "pillow (>=12.1.1,<13.0.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "python-dotenv (>=1.2.1,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
